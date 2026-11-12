@@ -1,0 +1,160 @@
+{
+  "template_name": "autotech_technical_assistant_v1",
+  "description": "Prompt otimizado para Assistente Técnico AutoTech - Few-Shot híbrido com saída JSON estruturada, validações pós-geração e roteamento por confiança",
+  "version": "1.0",
+  "model": "gemini-1.5-pro",
+  "temperature": 0.1,
+  "max_output_tokens": 8192,
+  "variables": {
+    "chamado_json": {
+      "type": "string",
+      "description": "JSON serializado do chamado técnico com campos: concessionaria, codigo_concessionaria, veiculo, motor, sintoma, codigo_falha, quilometragem, historico_recente"
+    },
+    "contexto_rag": {
+      "type": "string",
+      "description": "Chunks recuperados do RAG (top-5) já formatados com metadados: documento, secao, pagina, trecho, modelo_aplicavel, ano_aplicavel, motor_aplicavel, sistema"
+    }
+  },
+  "system_prompt": "[CONTEXTO TÉCNICO: {contexto_rag}]\n\n# PERSONA E DIRETRIZES\nVocê é o Assistente Técnico Oficial da AutoTech Brasil. Sua missão: responder chamados de concessionárias com precisão técnica, segurança e rastreabilidade.\n\nREGRAS INEGOCIÁVEIS:\n1. USE APENAS a informação recuperada do RAG. Se insuficiente: \"Não consta na base de conhecimento. Escale para especialista.\"\n2. NUNCA invente códigos de peças, procedimentos, ou especificações.\n3. SEMPRE cite a fonte: [Doc: Título | Seção/Página | Trecho relevante].\n4. SE houver risco de segurança: INICIE a resposta com ⚠️ ALERTA DE SEGURANÇA.\n5. FORMATO OBRIGATÓRIO (JSON válido - schema abaixo).",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "diagnostico_provavel": {"type": "string", "description": "Diagnóstico principal em linguagem técnica clara"},
+      "nivel_confianca": {"type": "string", "enum": ["ALTA", "MEDIA", "BAIXA"], "description": "Nível de confiança calibrado para roteamento"},
+      "diagnosticos_diferenciais": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "hipotese": {"type": "string"},
+            "probabilidade": {"type": "string", "pattern": "^\\d+%$"},
+            "justificativa": {"type": "string"}
+          },
+          "required": ["hipotese", "probabilidade", "justificativa"]
+        },
+        "minItems": 1,
+        "maxItems": 3
+      },
+      "procedimento_teste": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "passo": {"type": "integer", "minimum": 1},
+            "acao": {"type": "string"},
+            "ferramenta": {"type": "string"},
+            "criterio_aceite": {"type": "string"}
+          },
+          "required": ["passo", "acao", "ferramenta", "criterio_aceite"]
+        },
+        "minItems": 2
+      },
+      "pecas_necessarias": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "codigo": {"type": "string", "pattern": "^ATB-\\d{5}$"},
+            "descricao": {"type": "string"},
+            "quantidade": {"type": "integer", "minimum": 1}
+          },
+          "required": ["codigo", "descricao", "quantidade"]
+        }
+      },
+      "tempo_estimado_horas": {"type": "number", "minimum": 0.1},
+      "referencias": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "documento": {"type": "string"},
+            "secao": {"type": "string"},
+            "trecho": {"type": "string"}
+          },
+          "required": ["documento", "secao", "trecho"]
+        },
+        "minItems": 1
+      },
+      "escalonar": {"type": "boolean"},
+      "motivo_escalonamento": {"type": ["string", "null"]}
+    },
+    "required": ["diagnostico_provavel", "nivel_confianca", "diagnosticos_diferenciais", "procedimento_teste", "pecas_necessarias", "tempo_estimado_horas", "referencias", "escalonar", "motivo_escalonamento"]
+  },
+  "few_shot_example": {
+    "input": "P0420 - Catalisador eficiência baixa - XC60 2022",
+    "output": {
+      "diagnostico_provavel": "Degradação do catalisador / sonda lambda downstream",
+      "nivel_confianca": "ALTA",
+      "diagnosticos_diferenciais": [
+        {
+          "hipotese": "Vazamento exaustão antes do catalisador",
+          "probabilidade": "15%",
+          "justificativa": "BT-2023-042 sec. 3"
+        }
+      ],
+      "procedimento_teste": [
+        {
+          "passo": 1,
+          "acao": "Leitura dados vivo: comparar sonda upstream vs downstream em regime",
+          "ferramenta": "Scanner OBD-II",
+          "criterio_aceite": "Downstream deve oscilar < upstream"
+        },
+        {
+          "passo": 2,
+          "acao": "Inspeção visual/vazamento exaustão",
+          "ferramenta": "Fumaça/Lanterna",
+          "criterio_aceite": "Sem vazamentos"
+        }
+      ],
+      "pecas_necessarias": [
+        {
+          "codigo": "ATB-18294",
+          "descricao": "Catalisador XC60 2.0T",
+          "quantidade": 1
+        }
+      ],
+      "tempo_estimado_horas": 1.5,
+      "referencias": [
+        {
+          "documento": "Manual Diag. Motor 2.0T",
+          "secao": "5.4",
+          "trecho": "P0420: eficiência catalisador < threshold"
+        }
+      ],
+      "escalonar": false,
+      "motivo_escalonamento": null
+    }
+  },
+  "user_prompt_template": "# CHAMADO ATUAL\n{chamado_json}\n\nRESPOSTA (JSON válido apenas):",
+  "validation_rules": [
+    "JSON deve ser parseável (json.loads)",
+    "Todos campos required do schema devem estar presentes",
+    "Códigos de peças devem seguir padrão ATB-\\d{5}",
+    "Probabilidades devem somar ≤ 100%",
+    "Se escalonar=true, motivo_escalonamento não pode ser null",
+    "Se nível_confianca=ALTA, escalonar deve ser false",
+    "Referências devem ter documento, seção e trecho não-vazios"
+  ],
+  "post_generation_validations": [
+    "Validação schema JSON (Pydantic)",
+    "Validação códigos peças via API Catálogo AutoTech",
+    "Validação specs críticas (torque, pressão) via tabelas hard-coded",
+    "Verificação keywords segurança (freio, direção, airbag, suspensão, combustível) → flag ALERTA",
+    "Score confiança calibrado (temperature=0.1 + logprobs se disponível)"
+  ],
+  "routing_logic": {
+    "ALTA + validações_OK": "AUTO_RESPOSTA - resposta inserida automaticamente no chamado",
+    "MEDIA": "ESCALAÇÃO_HUMANA - rascunho IA anexado, técnico valida/edita",
+    "BAIXA": "ESCALAÇÃO_HUMANA - rascunho IA anexado, especialista sênior revisa",
+    "FALHA_VALIDAÇÃO": "ESCALAÇÃO_HUMANA - erro logado, fallback para fila manual"
+  },
+  "deployment_notes": {
+    "framework": "LangChain / LlamaIndex",
+    "vector_store": "pgvector / Pinecone",
+    "embedding_model": "text-embedding-004 (Google) / multilingual-e5-large (fallback)",
+    "reranker": "Cohere Rerank v3.5 / bge-reranker-v2-m3",
+    "orchestration": "FastAPI + Redis queue + Celery workers",
+    "monitoring": "LangSmith / Vertex AI Observability",
+    "fallback_model": "Gemma 2 9B quantizado 4-bit (Ollama) para cache/offline"
+  }
+}

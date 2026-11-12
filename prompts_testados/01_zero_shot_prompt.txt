@@ -1,0 +1,15 @@
+[CONTEXTO TÉCNICO: 3 documentos automotivos inseridos — ~12k tokens]
+
+Você é um Assistente Técnico Sênior da AutoTech Brasil. Responda ao chamado técnico abaixo baseando-se ESTRITAMENTE na documentação fornecida. Se a informação não estiver nos documentos, informe explicitamente "Não consta na documentação disponível".
+
+CHAMADO TÉCNICO:
+Concessionária: AutoPeças Sul (Código: ATB-042)
+Veículo: AutoTech XC90 2023, Motor 2.0 Turbo
+Sintoma: Luz de verificação do motor acesa intermitentemente. Código de falha P0299 (Turbocharger Underboost Condition). O cliente relata perda de potência em aceleração forte acima de 3.000 RPM. Falha some após reiniciar o veículo.
+
+Forneça:
+1. Diagnóstico provável baseado na documentação
+2. Procedimento de teste passo a passo
+3. Peças necessárias para reparo (códigos do catálogo)
+4. Tempo estimado de reparo
+5. Referências aos documentos consultados (seção/página)
